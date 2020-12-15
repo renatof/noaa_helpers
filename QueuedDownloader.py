@@ -122,8 +122,31 @@ class QueuedDownloader():
     def AddDownloadItem(self, entry):
         self._download_queue.put(entry)
 
+    def ValidateDownloaded(self, entry):
+        self._logger.info("Validating file %s", entry.local_filename)
+        with open(entry.local_filename) as f:
+            if 'lon, [1]' in f.read():
+                return True
+        return False
+
+    def CheckDownloaded(self, entry):
+        self._logger.info("Checking if file already exists for %s as %s", entry.url, entry.local_filename)
+        if os.path.exists(entry.local_filename):
+            self._logger.info("File already exists %s", entry.local_filename)
+            if self.ValidateDownloaded(entry):
+                self._logger.info("File validated %s", entry.local_filename)
+                return True
+            else:
+                self._logger.info("File not validated %s", entry.local_filename)
+                return False
+        self._logger.info("File does not exist %s", entry.local_filename)
+        return False
+
     def Download(self, entry):
         self._logger.info("Attempting to download resource %s as %s", entry.url, entry.local_filename)
+        if self.CheckDownloaded(entry):
+            self._logger.info("Already downloaded, skipping %s", entry.local_filename)
+            return
         entry.attempts += 1
         c = pycurl.Curl()
         try:
@@ -135,7 +158,11 @@ class QueuedDownloader():
                 c.perform()
                 c.close()
                 # TODO:validate file
-                self._logger.info("... %s download completed", entry.local_filename)                
+                if self.ValidateDownloaded(entry):
+                    self._logger.info("... %s download completed", entry.local_filename)                
+                else:
+                    self._logger.info("Validation failed, requeuing for download %s", entry.url)
+                    self.AddDownloadItem(entry)
         except pycurl.error as err:
             log_msg = "Download error occurred:\n{0}".format(err)
             self._logger.warning(log_msg)
@@ -185,6 +212,8 @@ def main():
     lat = '[' + str(sys.argv[3]) + ']'
     lon = '[' + str(sys.argv[4]) + ']'
     date = str(sys.argv[2])
+    basedir = str(sys.argv[1]) + '/' + date + '/'
+    
     url_gen = ReqURLGenerator(lat, lon, date)
     url_gen.GenList()
     LOGGER.debug("%i items generated for download\n%s", len(url_gen), str(url_gen))
@@ -192,7 +221,7 @@ def main():
     qd = QueuedDownloader()
     index = 0
     for req in url_gen:
-        item = DownloadItem(req[0], "{0}.txt".format(req[1]))
+        item = DownloadItem(req[0], basedir + "{0}.txt".format(req[1]))
         index += 1
         qd.AddDownloadItem(item)
 
