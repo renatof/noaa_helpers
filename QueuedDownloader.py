@@ -200,8 +200,10 @@ class QueuedDownloader():
     def Report(self):
         if len(self._failed) == 0:
             self._logger.info("All downloads completed successfuly")
+            return 0
         else:
             self._logger.info("%i items failed to download\n%s", len(self._failed), str(self._failed))
+            return 1
 
 def main():
     if len(sys.argv) != 5:
@@ -229,7 +231,8 @@ def main():
     qd.WaitUntilJobsComplete()
     qd.AddDownloadItem(None)
     qd.ThreadJoin()
-    qd.Report()
+    retcode = qd.Report()
+    sys.exit(retcode)
 
 if __name__ == "__main__":
     main()
