@@ -68,19 +68,19 @@ class ReqURLGenerator():
     LON: [560]
     '''
     URLBASE = 'https://nomads.ncep.noaa.gov:443/dods/gefs/gefs'
-    QUERYPREFIX = '/gefs_pgrb2ap5_all_'
+    QUERYPREFIX = 'gefs_pgrb2ap5_all_'
     TIME = [ '00z', '06z', '12z', '18z' ]
     QUERYPOSTFIX = '.ascii?'
     VARIABLE = [ 'tmp2m', 'pressfc', 'rh2m', 'dlwrfsfc', 'dswrfsfc', 'apcpsfc', 'ugrd10m', 'vgrd10m' ]
     RANGE1 = '[0:30]'
     RANGE2 = '[0:64]'
- 
+
     def __init__(self, lat, lon, date):
         self._lat = lat
         self._lon = lon
         self._date = date
         self.urllist = []
-        
+
     def __repr__(self):
         return "urllist = %s" % (self.urllist)
 
@@ -95,10 +95,10 @@ class ReqURLGenerator():
         self.urllist.clear()
         for i in range(0, len(self.TIME)):
             for j in range(0, len(self.VARIABLE)):
-                url = self.URLBASE + self._date + self.QUERYPREFIX + self.TIME[i] + \
+                url = self.URLBASE + self._date + "/" + self.QUERYPREFIX + self.TIME[i] + \
                     self.QUERYPOSTFIX + self.VARIABLE[j] + self.RANGE1 + self.RANGE2 + \
                     self._lat + self._lon
-                fn = self.TIME[i] + self.VARIABLE[j] + self.RANGE1 + self.RANGE2 + \
+                fn = self.QUERYPREFIX + self.TIME[i] + self.QUERYPOSTFIX + self.VARIABLE[j] + self.RANGE1 + self.RANGE2 + \
                     self._lat + self._lon
                 self.urllist.append((url, fn))
 
@@ -109,9 +109,7 @@ class DownloadItem():
     self.attempts = 0
     self.timeout = timeout
 
-
-
-class QueuedDownloader():    
+class QueuedDownloader():
     def __init__(self):
         self._logger = LOGGER
         self._download_queue = Queue.Queue()
@@ -150,7 +148,7 @@ class QueuedDownloader():
         entry.attempts += 1
         c = pycurl.Curl()
         try:
-            with open(entry.local_filename, 'wb') as f: 
+            with open(entry.local_filename, 'wb') as f:
                 c.setopt(c.URL, entry.url)
                 c.setopt(c.TIMEOUT, entry.timeout)
                 c.setopt(c.WRITEDATA, f)
@@ -159,7 +157,7 @@ class QueuedDownloader():
                 c.close()
                 # TODO:validate file
                 if self.ValidateDownloaded(entry):
-                    self._logger.info("... %s download completed", entry.local_filename)                
+                    self._logger.info("... %s download completed", entry.local_filename)
                 else:
                     self._logger.info("Validation failed, requeuing for download %s", entry.url)
                     self.AddDownloadItem(entry)
@@ -199,7 +197,7 @@ class QueuedDownloader():
 
     def Report(self):
         if len(self._failed) == 0:
-            self._logger.info("All downloads completed successfuly")
+            self._logger.info("All downloads completed successfully")
             return 0
         else:
             self._logger.info("%i items failed to download\n%s", len(self._failed), str(self._failed))
@@ -207,7 +205,7 @@ class QueuedDownloader():
 
 def main():
     if len(sys.argv) != 5:
-        print("Usage: " + sys.argv[0] + "base_directory date lat lon\n")
+        print("Usage: " + sys.argv[0] + " base_directory date lat lon\n")
         print("Example: " + sys.argv[0] + " /opt/flare 20201207 255 560\n")
         return
 
@@ -215,15 +213,17 @@ def main():
     lon = '[' + str(sys.argv[4]) + ']'
     date = str(sys.argv[2])
     basedir = str(sys.argv[1]) + '/' + date + '/'
-    
+    if not os.path.exists(basedir):
+        os.makedirs(basedir)
+
     url_gen = ReqURLGenerator(lat, lon, date)
     url_gen.GenList()
     LOGGER.debug("%i items generated for download\n%s", len(url_gen), str(url_gen))
-    
+
     qd = QueuedDownloader()
     index = 0
     for req in url_gen:
-        item = DownloadItem(req[0], basedir + "{0}.txt".format(req[1]))
+        item = DownloadItem(req[0], basedir + "{0}".format(req[1]))
         index += 1
         qd.AddDownloadItem(item)
 
