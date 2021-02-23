@@ -154,6 +154,9 @@ class QueuedDownloader():
                 c.setopt(c.WRITEDATA, f)
                 c.setopt(c.CAINFO, certifi.where())
                 c.perform()
+                self._logger.info("Number of Attempts: %i", entry.attempts)
+                if entry.attempts >= config["MaxAttempts"]:
+                    raise err0
                 c.close()
                 # TODO:validate file
                 if self.ValidateDownloaded(entry):
@@ -161,6 +164,9 @@ class QueuedDownloader():
                 else:
                     self._logger.info("Validation failed, requeuing for download %s", entry.url)
                     self.AddDownloadItem(entry)
+        except Exception as err0:
+            self._logger.info("Exhausted %i attempts for %s", entry.attempts, entry.url)
+            self._failed.append(entry)
         except pycurl.error as err:
             log_msg = "Download error occurred:\n{0}".format(err)
             self._logger.warning(log_msg)
